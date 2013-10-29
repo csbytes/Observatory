@@ -1,5 +1,5 @@
 {
-  "name": "JenkinsWatch",
+  "name": "Observatory",
   "version": "0.0.2",
   "author": "Edward Smith <edwardrsmi@gmail.com>",
   "description": "A node project to monitor Jenkins jobs.",
@@ -9,7 +9,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/csbytes/JenkinsWatch.git"
+    "url": "https://github.com/csbytes/Observatory.git"
   },
   "dependencies": {
     "cron": "*",
