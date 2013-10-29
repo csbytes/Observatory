@@ -1,0 +1,25 @@
+mixin jobBox(jobListName)
+	include partials/job
+
+
+div.row(ng-controller="JobListCtrl")
+	div.col-md-3.col-sm-3.col-xs-3
+		div.row
+			div.page-header.center
+				h2 Failed - {{ failed.length }}
+		div#failure.row
+			+jobBox("failed")
+	div.col-md-1.col-sm-1.col-xs-1
+	div.col-md-3.col-sm-3.col-xs-3
+		div.row
+			div.page-header.center
+				h2 Pending - {{ pending.length }}
+		div#pending.row
+			+jobBox("pending")
+	div.col-md-1.col-sm-1.col-xs-1
+	div.col-md-3.col-sm-3.col-xs-3
+		div.row
+			div.page-header.center
+				h2 Successful - {{ successful.length }}
+		div#success.row
+				+jobBox("successful")

@@ -1,0 +1,15 @@
+div.box.row(ng-repeat="job in #{jobListName}")
+	div
+		div.title Job Name
+			a(href="{{ job.url }}") see job
+		div.value(title="{{ job.name }}") {{ truncateStr(job.name, 30) }}
+	div.content-left
+		div.title Date Run
+		div.value {{ job.date }}
+		div.title Build Number
+		div.value {{ job.buildNumber }}
+	div.content-right
+		div.title Time Run
+		div.value {{ job.time }}
+		div.title Duration
+		div.value {{ formatMs(job.duration) }}

@@ -1,0 +1,29 @@
+{
+  "name": "JenkinsWatch",
+  "version": "0.0.2",
+  "author": "Edward Smith <edwardrsmi@gmail.com>",
+  "description": "A node project to monitor Jenkins jobs.",
+  "private": true,
+  "bin": {
+    "http-server": "./bin/http-server"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/csbytes/JenkinsWatch.git"
+  },
+  "dependencies": {
+    "cron": "*",
+    "longjohn": "*",
+    "express": "3.x",
+    "jade": "*",
+    "primus": "*",
+    "moment": "*",
+    "ws": "*",
+    "winston": "~0.7.2",
+    "underscore": "~1.5.2",
+    "string": "~1.6.0"
+  },
+  "engines": {
+    "node": "0.10.16"
+  }
+}

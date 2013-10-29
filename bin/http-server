@@ -1,0 +1,184 @@
+var cronJob = require('cron').CronJob;
+var Primus = require('primus');
+var winston = require('winston');
+var _=require('underscore');
+
+// Loads the configuration
+var config = require('../config/config');
+
+// Configures logging
+winston.add(winston.transports.File, { filename: __dirname + '/../logs/application.log',  handleExceptions: true });
+winston.remove(winston.transports.Console);
+
+// enable web server logging; pipe those log messages through winston
+var winstonStream = {
+    write: function(message, encoding){
+        winston.info(message);
+    }
+};
+
+// Includes and initializes the module with the functions to integrate with Jenkins
+var jenkins = require('../lib/jenkins').Jenkins({
+	hostname: config.jenkins.hostname,
+	port: config.jenkins.port,
+	https: config.jenkins.https
+});
+
+// Includes Jenkins
+var express = require('express');
+var app = express();
+
+//===================
+// Configures express
+//===================
+
+app.use(express.bodyParser());
+app.use(express.logger({stream:winstonStream}));
+app.use(app.router);
+
+// Sets the path to static files
+app.use(express.static(__dirname + '/../public'));
+app.use('/images', express.static(__dirname + '/public/images'));
+app.use(express.favicon(__dirname + '/public/images/favicon.ico'));
+
+// Sets up some basic error handling
+app.use(express.errorHandler({ dump: true, stack: true }));
+
+// Sets express not to use a layout by default
+app.set('view options', {
+	layout: false
+});
+
+// Sets the views directory
+app.set('views', __dirname + '/../app/views');
+
+// Sets the view engine to jade
+app.set('view engine', 'jade');
+
+// Error handling middleware
+app.use(function(err, req, res, next){
+	winston.error(err.stack);
+	res.send(500, 'Something broke!');
+});
+
+// View helpers
+app.locals = require('../lib/helpers');
+
+// Add primus
+var server = require('http').createServer(app)
+  , primus = new Primus(server, { parser: 'JSON' });
+
+ // Saves the primus js library
+primus.save(__dirname +'/../public/js/primus.js');
+
+var models = {};
+models.Jobs = require('../app/models/jobs');
+models.Views = require('../app/models/views');
+
+//==========
+// Cron jobs
+//==========
+
+if(typeof config.jenkins.view != 'undefined' && config.jenkins.view != 0){
+	// Wrapped in an anonymous function to allow the viewName
+	// to be preserved.
+	(function(viewName){
+		// Gets the information for the view
+		new cronJob(config.cron.frequency, function(){
+			jenkins.getJobListFromView(viewName, function(res, err){
+				if(err != null){
+					winston.error("An error was encountered fetching view: %s.  The error was: %j", viewName, err);
+					return "";
+				}
+
+				var newView = models.Views.createView(viewName, res);
+
+				// Gets the jobs from the old and new view
+				var newViewJobs = newView.basicJobsArr();
+
+				// Gets the old view and if it exists, removes any jobs which were removed
+				var oldView = models.Views.getView(viewName);
+
+				if(typeof oldView != 'undefined'){
+					var oldViewJobs = oldView.basicJobsArr();
+
+					// Determine which jobs have been removed
+					var removedJobs = _.difference(oldViewJobs, newViewJobs);
+
+					// Removes all of the removed jobs and removes them from the clients
+					for(var i = 0; i < removedJobs.length; i++){
+						var jobToRemove = models.Jobs.getJob(removedJobs[i]);
+						models.Jobs.removeJob(jobToRemove.name);
+						primus.write({
+							'action': 'remove',
+							'job': jobToRemove
+						});
+					}
+				}
+
+				// Stores the new view
+				models.Views.setView(viewName, newView);
+
+				for(var i = 0; i < newView.jobs.length; i++){
+					var jobName = newView.jobs[i].name;
+
+					(function(jobName){jenkins.getLatestBuildInfo(jobName, function(res, err){
+						if(err != null){
+							winston.error("An error was encountered fetching job: %s.  The error was: %j", jobName, err);
+							return "";
+						}
+
+						// Creates the new job and fetches the old one
+						var oldJob = models.Jobs.getJob(jobName);
+						var newJob = models.Jobs.createJob(jobName, res);
+
+						// If the old job and the new job are equal then nothing should be done.
+						// This cuts down on the traffic to the client and improves performance as
+						// most of the time jobs will not have changed.
+						if(typeof oldJob == 'undefined' || ! models.Jobs.isEqual(oldJob, newJob)){
+							models.Jobs.setJob(jobName, newJob);
+						}
+					})})(jobName);
+				}
+			});
+		}, null, true);
+	})(config.jenkins.view);
+}else{
+	throw new Error("No jobs were specified!");
+}
+
+new cronJob("* * * * * *", function(){
+	if(models.Jobs.jobQueue.length > 0){
+		(function(actions){
+			primus.write(actions);
+		})(models.Jobs.jobQueue);
+
+		// Empties the jobSendQueue
+		models.Jobs.jobQueue = [];
+	}
+}, null, true);
+
+// Sends an initial push of data when the client connects
+primus.on('connection', function (spark) {
+  winston.error("Received connection from ", spark.address);
+  var actionArr = [];
+
+  // Creates the list of actions
+  for(var jobName in models.Jobs.all){
+  	actionArr.push({
+  		action: 'update',
+  		job: models.Jobs.getJob(jobName)
+  	});
+  }
+
+  spark.write(actionArr);
+});
+
+
+// Loads the routes
+require('../config/routes').createRoutes(app, models);
+
+// Starts the server
+server.listen(config.web.port, function(){
+	winston.info('Listening on port ' + config.web.port);
+});
