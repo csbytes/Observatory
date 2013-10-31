@@ -8,7 +8,7 @@ var config = require('../config/config');
 
 // Configures logging
 winston.add(winston.transports.File, { filename: __dirname + '/../logs/application.log',  handleExceptions: true });
-winston.remove(winston.transports.Console);
+//winston.remove(winston.transports.Console);
 
 // enable web server logging; pipe those log messages through winston
 var winstonStream = {
@@ -87,7 +87,7 @@ if(typeof config.jenkins.view != 'undefined' && config.jenkins.view != 0){
 		new cronJob(config.cron.frequency, function(){
 			jenkins.getJobListFromView(viewName, function(res, err){
 				if(err != null){
-					winston.error("An error was encountered fetching view: %s.  The error was: %j", viewName, err);
+					winston.error("An error was encountered fetching view: %s.  The error was: %j", viewName, err, null);
 					return "";
 				}
 
@@ -124,7 +124,7 @@ if(typeof config.jenkins.view != 'undefined' && config.jenkins.view != 0){
 
 					(function(jobName){jenkins.getLatestBuildInfo(jobName, function(res, err){
 						if(err != null){
-							winston.error("An error was encountered fetching job: %s.  The error was: %j", jobName, err);
+							winston.error("An error was encountered fetching job: %s.  The error was: %j", jobName, err, null);
 							return "";
 						}
 
@@ -160,7 +160,7 @@ new cronJob("* * * * * *", function(){
 
 // Sends an initial push of data when the client connects
 primus.on('connection', function (spark) {
-  winston.error("Received connection from ", spark.address);
+  winston.log('info', "Received connection from %j", spark.address, null);
   var actionArr = [];
 
   // Creates the list of actions
@@ -180,5 +180,5 @@ require('../config/routes').createRoutes(app, models);
 
 // Starts the server
 server.listen(config.web.port, function(){
-	winston.info('Listening on port ' + config.web.port);
+	winston.log('info', 'Listening on port %d', config.web.port);
 });
